@@ -1,31 +1,31 @@
 #!/bin/bash
-# c — copia conteúdo de arquivos ou stdin para o clipboard (xsel), com opções úteis.
+# c — copies file contents or stdin to the clipboard (xsel), with useful options.
 
 set -euo pipefail
 
 show_help() {
     cat <<'EOF'
-Uso: c [opções] [arquivos]
+Usage: c [options] [files]
 
-Descrição:
-  Copia o conteúdo de um ou mais arquivos para a área de transferência (xsel).
-  Se nenhum arquivo for informado e houver entrada padrão (pipe), lê do stdin.
+Description:
+  Copies the contents of one or more files to the clipboard (xsel).
+  If no files are provided and standard input is available (pipe), reads from stdin.
 
-Opções:
-  -s            Silencioso: não exibe no terminal (só copia).
-  -h            Mostra esta ajuda.
-  -n            Não adiciona separadores entre arquivos.
-  -d <texto>    Define separador customizado entre arquivos.
-  -o <arquivo>  Também salva a saída nesse arquivo.
-  -l            Mostra o nome do arquivo antes do conteúdo (header).
-  -r            Numera as linhas do conteúdo (estilo 'nl').
-  -u            Copia apenas os NOME(S) dos arquivos (um por linha), sem conteúdo.
+Options:
+  -s            Silent: do not display output in the terminal (copy only).
+  -h            Show this help message.
+  -n            Do not add separators between files.
+  -d <text>     Set a custom separator between files.
+  -o <file>     Also save the output to this file.
+  -l            Show the file name before its contents (header).
+  -r            Number content lines (similar to 'nl').
+  -u            Copy file NAME(S) only (one per line), without their contents.
 
-Exemplos:
+Examples:
   c README.md
   c -s *.txt
   c -d "---" a.txt b.txt
-  c -o saida.txt *.log
+  c -o output.txt *.log
   c -l -r *.conf
   c -u *.txt
   ls -l | c
@@ -52,26 +52,26 @@ while getopts ":shnd:o:lru" opt; do
         l) show_label=true ;;
         r) number_lines=true ;;
         u) only_names=true ;;
-        :) echo "[!] Opção -$OPTARG requer argumento." >&2; exit 1 ;;
-        \?) echo "[!] Opção inválida: -$OPTARG" >&2; show_help; exit 1 ;;
+        :) echo "[!] Option -$OPTARG requires an argument." >&2; exit 1 ;;
+        \?) echo "[!] Invalid option: -$OPTARG" >&2; show_help; exit 1 ;;
     esac
 done
 shift $((OPTIND-1))
 
-# Temp buffer
+# Temporary buffer
 tmpfile="$(mktemp)"
 cleanup() { rm -f "$tmpfile"; }
 trap cleanup EXIT
 
-# Caso 1: somente nomes (-u)
+# Case 1: names only (-u)
 if $only_names; then
     if [ $# -eq 0 ]; then
-        echo "[!] Nenhum arquivo especificado para -u." >&2
+        echo "[!] No files specified for -u." >&2
         exit 1
     fi
     printf "%s\n" "$@" > "$tmpfile"
 
-# Caso 2: arquivos fornecidos
+# Case 2: provided files
 elif [ $# -gt 0 ]; then
     total=$#
     count=0
@@ -90,11 +90,11 @@ elif [ $# -gt 0 ]; then
                 printf "%b" "$separator" >> "$tmpfile"
             fi
         else
-            echo "[!] Arquivo não encontrado: $file" >&2
+            echo "[!] File not found: $file" >&2
         fi
     done
 
-# Caso 3: sem arquivos, mas recebendo stdin
+# Case 3: no files, but receiving stdin
 elif [ ! -t 0 ]; then
     if $number_lines; then
         nl -ba >> "$tmpfile"
@@ -102,26 +102,26 @@ elif [ ! -t 0 ]; then
         cat >> "$tmpfile"
     fi
 
-# Caso 4: nenhum argumento e nenhum stdin
+# Case 4: no arguments and no stdin
 else
     show_help
     exit 1
 fi
 
-# Copia para o clipboard
+# Copy to the clipboard
 xsel --input --clipboard < "$tmpfile"
 
-# Salva em arquivo, se -o
+# Save to a file when -o is used
 [ -n "$outfile" ] && cp -- "$tmpfile" "$outfile"
 
-# Exibe no terminal, a menos que -s
+# Display in the terminal unless -s is used
 if ! $silent; then
     cat -- "$tmpfile"
 fi
 
-# Mensagem final
+# Final message
 if [ -n "$outfile" ]; then
-    echo "[+] Conteúdo copiado para o clipboard e salvo em: $outfile"
+    echo "[+] Content copied to the clipboard and saved to: $outfile"
 else
-    echo "[+] Conteúdo copiado para o clipboard."
+    echo "[+] Content copied to the clipboard."
 fi
