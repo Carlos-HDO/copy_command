@@ -21,8 +21,10 @@ Options:
   -l            Show the file name before its contents (header).
   -r            Number content lines (similar to 'nl').
   -u            Copy file NAME(S) only (one per line), without their contents.
+  -t            Trim trailing newlines (handy for pasting commands in a terminal).
 
-  Options must come before file names. Use -- to stop option parsing.
+  Options may appear anywhere and can be combined (-lr). Arguments after --
+  are always treated as file names (e.g. c -- -weird-name.txt).
 
 Clipboard backends (first available is used):
   wl-copy (Wayland), xsel, xclip (X11), pbcopy (macOS)
@@ -38,6 +40,7 @@ Examples:
   c -l -r *.conf
   c -u *.txt
   ls -l | c
+  pwd | c -t
 EOF
 }
 
@@ -50,23 +53,57 @@ outfile=""
 show_label=false
 number_lines=false
 only_names=false
+trim_newline=false
 
-# Parse options
-while getopts ":shnd:o:lru" opt; do
-    case "$opt" in
-        s) silent=true ;;
-        h) show_help; exit 0 ;;
-        n) no_sep=true ;;
-        d) separator="$OPTARG\n"; custom_sep=true ;;
-        o) outfile=$OPTARG ;;
-        l) show_label=true ;;
-        r) number_lines=true ;;
-        u) only_names=true ;;
-        :) echo "[!] Option -$OPTARG requires an argument." >&2; exit 1 ;;
-        \?) echo "[!] Invalid option: -$OPTARG" >&2; show_help >&2; exit 1 ;;
+# Parse options (they may appear before, between or after file names)
+files=()
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --) shift; files+=("$@"); break ;;
+        -)  files+=("$1") ;;
+        -?*)
+            opts=${1#-}
+            while [ -n "$opts" ]; do
+                opt=${opts:0:1}
+                opts=${opts:1}
+                case "$opt" in
+                    s) silent=true ;;
+                    h) show_help; exit 0 ;;
+                    n) no_sep=true ;;
+                    l) show_label=true ;;
+                    r) number_lines=true ;;
+                    u) only_names=true ;;
+                    t) trim_newline=true ;;
+                    d|o)
+                        # Argument is either the rest of this word (-dTEXT) or the next one
+                        if [ -n "$opts" ]; then
+                            optarg=$opts
+                            opts=""
+                        elif [ $# -ge 2 ]; then
+                            shift
+                            optarg=$1
+                        else
+                            echo "[!] Option -$opt requires an argument." >&2
+                            exit 1
+                        fi
+                        if [ "$opt" = "d" ]; then
+                            separator="$optarg\n"
+                            custom_sep=true
+                        else
+                            outfile=$optarg
+                        fi
+                        ;;
+                    *) echo "[!] Invalid option: -$opt" >&2; show_help >&2; exit 1 ;;
+                esac
+            done
+            ;;
+        *) files+=("$1") ;;
     esac
+    shift
 done
-shift $((OPTIND-1))
+if [ ${#files[@]} -gt 0 ]; then
+    set -- "${files[@]}"
+fi
 
 if $no_sep && $custom_sep; then
     echo "[!] Options -n and -d cannot be used together." >&2
@@ -172,6 +209,12 @@ else
     exit 1
 fi
 
+# Remove trailing newlines when -t is used
+if $trim_newline; then
+    trimmed="$(cat -- "$tmpfile")"
+    printf '%s' "$trimmed" > "$tmpfile"
+fi
+
 # Copy to the clipboard
 "${clip_cmd[@]}" < "$tmpfile"
 
@@ -181,6 +224,10 @@ fi
 # Display in the terminal unless -s is used; status messages go to stderr
 if ! $silent; then
     cat -- "$tmpfile"
+    # Keep the status message off the last content line when both share the terminal
+    if [ -t 1 ] && [ -t 2 ] && [ -s "$tmpfile" ] && [ -n "$(tail -c1 "$tmpfile")" ]; then
+        echo >&2
+    fi
     if [ -n "$outfile" ]; then
         echo "[+] Content copied to the clipboard and saved to: $outfile" >&2
     else

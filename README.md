@@ -13,6 +13,7 @@ A lightweight, versatile Bash terminal utility designed to copy file contents or
 - **Filenames Only (`-u`)**: Copy only the file names (one per line) rather than the file contents.
 - **Silent Mode (`-s`)**: Suppress terminal output and copy silently to the clipboard.
 - **Dual Output (`-o`)**: Save processed output to a local file while simultaneously copying to the clipboard.
+- **Trim Trailing Newline (`-t`)**: Strip trailing newlines so a pasted command does not run immediately in a terminal.
 - **Safe Failures**: Missing files are reported and return a non-zero exit code; the clipboard is never overwritten with empty content when nothing could be read.
 
 ---
@@ -61,6 +62,9 @@ cat /etc/resolv.conf | c
 
 # Silent copy (copies to clipboard without printing to terminal)
 c -s config.yml
+
+# Copy a path or command without the trailing newline
+pwd | c -t
 ```
 
 ### Advanced Examples
@@ -95,8 +99,9 @@ git diff | c -l - notes.md
 | `-l` | **Label/Header**: Display the file name header before its contents |
 | `-r` | **Number lines**: Number each line of content (similar to `nl`) |
 | `-u` | **Names only**: Copy only the list of file names, excluding content |
+| `-t` | **Trim**: Remove trailing newlines before copying |
 
-Options must come before file names (use `--` to stop option parsing). `-n` and `-d` cannot be combined.
+Options can appear anywhere on the command line and can be combined (`-lr`, `-d---`). Everything after `--` is treated as a file name (e.g. `c -- -notes.txt`). `-n` and `-d` cannot be combined.
 
 Status messages are written to `stderr`, so `stdout` carries only the copied content. The exit code is `0` on success and `1` if any file could not be read or on usage errors.
 
@@ -120,7 +125,23 @@ chmod +x install.sh
 ./install.sh
 ```
 
+To remove the symlinks later (only links that point to this clone are removed):
+```bash
+./uninstall.sh
+```
+
 > **Note:** if your shell already defines `c` (e.g. `alias c=clear`), that alias takes precedence. Remove it or use `copy-clip` instead.
+
+---
+
+## 🧪 Development
+
+Tests use [bats](https://github.com/bats-core/bats-core) with a fake `xsel`, so your real clipboard is never touched. CI runs them together with `shellcheck` on every push and pull request.
+
+```bash
+bats test/
+shellcheck copy.sh install.sh uninstall.sh
+```
 
 ---
 
