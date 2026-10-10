@@ -2,6 +2,12 @@
 
 A lightweight, versatile Bash terminal utility designed to copy file contents or standard input (`stdin`) directly to the system clipboard (`wl-copy`, `xsel`, `xclip` or `pbcopy`), featuring advanced formatting options, file headers, custom delimiters, and line numbering.
 
+## Project status
+
+**Ready for use** (reviewed 2026-10-10). The latest fixes are merged into `main` in [PR #2](https://github.com/Carlos-HDO/copy_command/pull/2). ShellCheck and all 29 Bats tests passed locally and in that pull request's CI.
+
+The tests use a fake clipboard backend. They cover the command's behavior without changing the real clipboard; integration with a live Wayland, X11, or macOS clipboard was not tested in this review. No outstanding code issues were identified in the tested behavior.
+
 ---
 
 ## ⚡ Features
