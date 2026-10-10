@@ -9,10 +9,24 @@ BIN_NAME="c"
 
 mkdir -p "$TARGET_DIR"
 
+for name in "$BIN_NAME" copy-clip; do
+    link="$TARGET_DIR/$name"
+    if [ -e "$link" ] || [ -L "$link" ]; then
+        if [ ! -L "$link" ] || [ "$(readlink -- "$link")" != "$SCRIPT_DIR/copy.sh" ]; then
+            echo "[!] Cannot install: $link already exists and is not this project's link." >&2
+            exit 1
+        fi
+    fi
+done
+
 chmod +x "$SCRIPT_DIR/copy.sh"
 
-ln -sf "$SCRIPT_DIR/copy.sh" "$TARGET_DIR/$BIN_NAME"
-ln -sf "$SCRIPT_DIR/copy.sh" "$TARGET_DIR/copy-clip"
+for name in "$BIN_NAME" copy-clip; do
+    link="$TARGET_DIR/$name"
+    if [ ! -L "$link" ]; then
+        ln -s "$SCRIPT_DIR/copy.sh" "$link"
+    fi
+done
 
 echo "✅ Installed successfully!"
 echo "Commands available in $TARGET_DIR:"
