@@ -132,7 +132,8 @@ trap cleanup EXIT
 
 # Append a newline if the buffer is non-empty and does not end with one
 ensure_newline() {
-    if [ -s "$tmpfile" ] && [ -n "$(tail -c1 "$tmpfile")" ]; then
+    if [ -s "$tmpfile" ] &&
+       [ "$(tail -c 1 "$tmpfile" | od -An -tu1 | tr -d '[:space:]')" != 10 ]; then
         printf '\n' >> "$tmpfile"
     fi
 }
@@ -159,6 +160,8 @@ if $only_names; then
 # Case 2: provided files
 elif [ $# -gt 0 ]; then
     copied=0
+    has_regular_file=false
+    stdin_has_data=false
     for file in "$@"; do
         if [ "$file" != "-" ]; then
             if [ -d "$file" ]; then
@@ -187,15 +190,20 @@ elif [ $# -gt 0 ]; then
         fi
 
         if [ "$file" = "-" ]; then
+            before_bytes=$(wc -c < "$tmpfile")
             append_source
+            if [ "$(wc -c < "$tmpfile")" -gt "$before_bytes" ]; then
+                stdin_has_data=true
+            fi
         else
             append_source "$file"
+            has_regular_file=true
         fi
         copied=$((copied+1))
     done
 
     # Nothing was read: keep the current clipboard untouched
-    if [ $copied -eq 0 ]; then
+    if ! $has_regular_file && ! $stdin_has_data; then
         echo "[!] Nothing copied; clipboard left unchanged." >&2
         exit 1
     fi
@@ -203,6 +211,10 @@ elif [ $# -gt 0 ]; then
 # Case 3: no files, but receiving stdin
 elif [ ! -t 0 ]; then
     append_source
+    if [ ! -s "$tmpfile" ]; then
+        echo "[!] Nothing copied; clipboard left unchanged." >&2
+        exit 1
+    fi
 
 # Case 4: no arguments and no stdin
 else

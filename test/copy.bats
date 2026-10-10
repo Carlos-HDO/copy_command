@@ -60,10 +60,33 @@ c() {
     [ "$(cat "$CLIP")" = "aaa" ]
 }
 
+@test "empty stdin without files leaves the clipboard unchanged" {
+    run c -s
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"clipboard left unchanged"* ]]
+    [ "$(cat "$CLIP")" = "OLD" ]
+}
+
+@test "empty stdin passed as a file leaves the clipboard unchanged" {
+    run c -s -l -
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"clipboard left unchanged"* ]]
+    [ "$(cat "$CLIP")" = "OLD" ]
+}
+
 @test "headers go on their own lines even without a trailing newline" {
     run c -s -l -n a.txt b.txt
     [ "$status" -eq 0 ]
     [ "$(cat "$CLIP")" = $'>>> a.txt\naaa\n>>> b.txt\nbbb' ]
+}
+
+@test "header follows a NUL-terminated file on a new line" {
+    printf 'zero\0' > nul.txt
+    printf '>>> nul.txt\nzero\0\n>>> b.txt\nbbb\n' > expected.bin
+
+    run c -s -l -n nul.txt b.txt
+    [ "$status" -eq 0 ]
+    cmp -s expected.bin "$CLIP"
 }
 
 @test "custom separator sits on its own line" {
