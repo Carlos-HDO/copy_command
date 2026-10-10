@@ -126,7 +126,8 @@ fi
 
 # Temporary buffer
 tmpfile="$(mktemp)"
-cleanup() { rm -f "$tmpfile"; }
+tmpfiles=("$tmpfile")
+cleanup() { rm -f "${tmpfiles[@]}"; }
 trap cleanup EXIT
 
 # Append a newline if the buffer is non-empty and does not end with one
@@ -211,8 +212,16 @@ fi
 
 # Remove trailing newlines when -t is used
 if $trim_newline; then
-    trimmed="$(cat -- "$tmpfile")"
-    printf '%s' "$trimmed" > "$tmpfile"
+    # Count bytes up to the last non-newline byte without passing file data
+    # through a shell variable, which cannot represent NUL bytes.
+    keep_bytes="$(od -An -tu1 -v "$tmpfile" | awk '
+        { for (i = 1; i <= NF; i++) { count++; if ($i != 10) last = count } }
+        END { print last + 0 }
+    ')"
+    trimmed_file="$(mktemp)"
+    tmpfiles+=("$trimmed_file")
+    head -c "$keep_bytes" "$tmpfile" > "$trimmed_file"
+    tmpfile="$trimmed_file"
 fi
 
 # Copy to the clipboard

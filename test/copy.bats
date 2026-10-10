@@ -154,6 +154,23 @@ c() {
     [ "$(od -An -c "$CLIP" | tr -d ' \n')" = "ls-la" ]
 }
 
+@test "-t preserves NUL bytes and internal newlines" {
+    printf 'a\0b\nc\n\n' > binary.txt
+    printf 'a\0b\nc' > expected.bin
+
+    run c -s -t binary.txt
+    [ "$status" -eq 0 ]
+    cmp -s expected.bin "$CLIP"
+}
+
+@test "-t handles content made only of newlines" {
+    printf '\n\n' > newlines.txt
+
+    run c -s -t newlines.txt
+    [ "$status" -eq 0 ]
+    [ ! -s "$CLIP" ]
+}
+
 @test "without -t the trailing newline is kept" {
     run bash -c 'echo "ls" | bash "$1" -s' _ "$SCRIPT"
     [ "$(wc -c < "$CLIP")" -eq 3 ]
