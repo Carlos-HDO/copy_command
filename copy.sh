@@ -126,12 +126,14 @@ fi
 
 # Temporary buffer
 tmpfile="$(mktemp)"
-cleanup() { rm -f "$tmpfile"; }
+tmpfiles=("$tmpfile")
+cleanup() { rm -f "${tmpfiles[@]}"; }
 trap cleanup EXIT
 
 # Append a newline if the buffer is non-empty and does not end with one
 ensure_newline() {
-    if [ -s "$tmpfile" ] && [ -n "$(tail -c1 "$tmpfile")" ]; then
+    if [ -s "$tmpfile" ] &&
+       [ "$(tail -c 1 "$tmpfile" | od -An -tu1 | tr -d '[:space:]')" != 10 ]; then
         printf '\n' >> "$tmpfile"
     fi
 }
@@ -158,6 +160,8 @@ if $only_names; then
 # Case 2: provided files
 elif [ $# -gt 0 ]; then
     copied=0
+    has_regular_file=false
+    stdin_has_data=false
     for file in "$@"; do
         if [ "$file" != "-" ]; then
             if [ -d "$file" ]; then
@@ -186,15 +190,20 @@ elif [ $# -gt 0 ]; then
         fi
 
         if [ "$file" = "-" ]; then
+            before_bytes=$(wc -c < "$tmpfile")
             append_source
+            if [ "$(wc -c < "$tmpfile")" -gt "$before_bytes" ]; then
+                stdin_has_data=true
+            fi
         else
             append_source "$file"
+            has_regular_file=true
         fi
         copied=$((copied+1))
     done
 
     # Nothing was read: keep the current clipboard untouched
-    if [ $copied -eq 0 ]; then
+    if ! $has_regular_file && ! $stdin_has_data; then
         echo "[!] Nothing copied; clipboard left unchanged." >&2
         exit 1
     fi
@@ -202,6 +211,10 @@ elif [ $# -gt 0 ]; then
 # Case 3: no files, but receiving stdin
 elif [ ! -t 0 ]; then
     append_source
+    if [ ! -s "$tmpfile" ]; then
+        echo "[!] Nothing copied; clipboard left unchanged." >&2
+        exit 1
+    fi
 
 # Case 4: no arguments and no stdin
 else
@@ -211,8 +224,16 @@ fi
 
 # Remove trailing newlines when -t is used
 if $trim_newline; then
-    trimmed="$(cat -- "$tmpfile")"
-    printf '%s' "$trimmed" > "$tmpfile"
+    # Count bytes up to the last non-newline byte without passing file data
+    # through a shell variable, which cannot represent NUL bytes.
+    keep_bytes="$(od -An -tu1 -v "$tmpfile" | awk '
+        { for (i = 1; i <= NF; i++) { count++; if ($i != 10) last = count } }
+        END { print last + 0 }
+    ')"
+    trimmed_file="$(mktemp)"
+    tmpfiles+=("$trimmed_file")
+    head -c "$keep_bytes" "$tmpfile" > "$trimmed_file"
+    tmpfile="$trimmed_file"
 fi
 
 # Copy to the clipboard

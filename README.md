@@ -125,6 +125,8 @@ chmod +x install.sh
 ./install.sh
 ```
 
+The installer stops if either command name already belongs to another file or link, leaving it untouched.
+
 To remove the symlinks later (only links that point to this clone are removed):
 ```bash
 ./uninstall.sh
